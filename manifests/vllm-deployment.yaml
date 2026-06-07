@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-inference
+  namespace: inference
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      app: vllm-inference
+  template:
+    metadata:
+      labels:
+        app: vllm-inference
+        llm-d.ai/guide: cache-aware-routing
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          command: ["vllm", "serve", "mistralai/Mistral-7B-Instruct-v0.3"]
+          args:
+            - --enable-prefix-caching
+            - --max-model-len
+            - "8192"
+            - --gpu-memory-utilization
+            - "0.90"
+            - --port
+            - "8000"
+            - --prefix-caching-hash-algo
+            - sha256_cbor
+            - --block-size
+            - "64"
+            - --kv-events-config
+            - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@mistralai/Mistral-7B-Instruct-v0.3"}'
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PYTHONHASHSEED
+              value: "42"
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 5556
+              name: zmq-kv-events
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+            limits:
+              nvidia.com/gpu: 1
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 180
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-inference
+  namespace: inference
+spec:
+  selector:
+    app: vllm-inference
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

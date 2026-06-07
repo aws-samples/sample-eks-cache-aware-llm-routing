@@ -1,93 +1,218 @@
-# aws-eks-cache-aware-llm-routing
+# Cache-Aware LLM Routing on Amazon EKS with Gateway API Inference Extension and llm-d
 
+This sample demonstrates how to deploy precise KV-cache-aware inference routing on Amazon EKS using the [Kubernetes Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) and [llm-d](https://llm-d.ai/), reducing tail latency (p90 TTFT) by up to 69% compared to standard round-robin routing under sustained multi-turn load.
 
+## Overview
 
-## Getting started
+When serving LLMs at scale with multiple replicas, standard Kubernetes load balancing scatters requests across pods without awareness of GPU KV-cache state. This forces each pod to recompute the KV-cache for shared prompt prefixes from scratch — wasting GPU cycles and increasing time-to-first-token (TTFT).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Cache-aware routing solves this by maintaining a real-time global index of which KV-cache blocks reside on which pod, and routing each request to the pod with the highest prefix-cache affinity.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+### Architecture
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.aws.dev/achintan/aws-eks-cache-aware-llm-routing.git
-git branch -M main
-git push -uf origin main
+Client
+  → Application Load Balancer (external ingress)
+    → Envoy Gateway (port 8080)
+      → ext-proc gRPC → llm-d EPP (Endpoint Picker)
+        EPP scores pods: precise-prefix-cache(3) + queue(2) + kv-util(2)
+      ← routing decision (selected pod IP)
+    → Envoy forwards to chosen vLLM pod (port 8000)
+      → vLLM processes with prefix caching + KVEvents publishing
+  ← streaming response
 ```
 
-## Integrate with your tools
+### How It Works
 
-- [ ] [Set up project integrations](https://gitlab.aws.dev/achintan/aws-eks-cache-aware-llm-routing/-/settings/integrations)
+1. **vLLM pods publish KV-cache events** over ZeroMQ on every block allocation/eviction
+2. **llm-d EPP subscribes per pod** via pod discovery, building a global prefix-block index
+3. **On each request**, the EPP tokenizes the prompt, looks up which pods hold matching blocks, and routes to the pod with the highest cache hit fraction
 
-## Collaborate with your team
+## Benchmark Results
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+**Configuration**: 150 concurrent users, 25 QPS (Poisson arrival), 8× vLLM pods (Mistral-7B on g5.2xlarge), 3-minute sustained multi-turn load.
 
-## Test and Deploy
+| Time Bucket | Round-Robin p90 | Cache-Aware p90 | Improvement |
+|-------------|-----------------|-----------------|-------------|
+| 0-30s       | 649ms           | 288ms           | **+56%**    |
+| 30-60s      | 1,276ms         | 711ms           | **+44%**    |
+| 60-90s      | 2,321ms         | 1,048ms         | **+55%**    |
+| 90-120s     | 2,571ms         | 1,091ms         | **+58%**    |
+| 150-180s    | 4,443ms         | 1,370ms         | **+69%**    |
 
-Use the built-in continuous integration in GitLab.
+Round-robin TTFT degrades to 4.4 seconds under sustained load while cache-aware routing holds at 1.4 seconds.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## Prerequisites
 
-***
+- AWS account with permissions for EKS, EC2 (GPU instances), and ELB
+- [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) configured
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) v1.30+
+- [Helm](https://helm.sh/docs/intro/install/) v3.12+
+- [eksctl](https://eksctl.io/installation/) v0.170+
+- A [Hugging Face token](https://huggingface.co/settings/tokens) with access to `mistralai/Mistral-7B-Instruct-v0.3`
+- Service quota for 8× `g5.2xlarge` instances in your target region
 
-# Editing this README
+## Cost
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+⚠️ **This sample provisions GPU instances that incur significant cost.**
 
-## Suggestions for a good README
+| Resource | Instance Type | Quantity | Estimated Cost |
+|----------|--------------|----------|----------------|
+| EKS Cluster | - | 1 | $0.10/hr |
+| GPU Nodes | g5.2xlarge | 8 | $8.08/hr ($1.01 each) |
+| NAT Gateway | - | 1 | $0.045/hr |
+| ALB | - | 1 | $0.023/hr |
+| **Total** | | | **~$8.25/hr** |
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Use the cleanup script to tear down resources when done. The benchmark itself takes ~15 minutes to run.
 
-## Name
-Choose a self-explaining name for your project.
+## Quick Start
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### 1. Create EKS Cluster
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```bash
+export AWS_REGION=us-west-2
+export CLUSTER_NAME=cache-routing-benchmark
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+eksctl create cluster -f manifests/cluster.yaml
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### 2. Deploy vLLM with KVEvents
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+# Create HuggingFace token secret
+kubectl -n inference create secret generic hf-token \
+  --from-literal=token=$HF_TOKEN
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+# Deploy vLLM (8 replicas with prefix caching + ZMQ KVEvents)
+kubectl apply -f manifests/vllm-deployment.yaml
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### 3. Install Gateway API and Envoy Gateway
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+# Gateway API CRDs
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.5.0/install.yaml
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Envoy Gateway
+helm install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.2.0 -n envoy-gateway-system --create-namespace
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# Gateway and GatewayClass
+kubectl apply -f manifests/gateway.yaml
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### 4. Deploy llm-d Router (Precise Scorer)
+
+```bash
+# Create HF token for tokenizer sidecar
+kubectl -n inference create secret generic llm-d-hf-token \
+  --from-literal=HF_TOKEN=$HF_TOKEN
+
+# Deploy via Helm
+helm install cache-aware-routing \
+  oci://ghcr.io/llm-d/charts/llm-d-router-gateway-dev \
+  --version v0 -n inference \
+  -f manifests/llm-d-router-values.yaml
+```
+
+### 5. Run Benchmark
+
+```bash
+# Wait for all pods to be ready
+kubectl -n inference wait --for=condition=Ready pod -l app=vllm-inference --timeout=600s
+
+# Deploy benchmark runner
+kubectl apply -f manifests/benchmark-runner.yaml
+
+# Install dependencies
+kubectl -n inference exec benchmark-runner -- pip install aiohttp --quiet
+
+# Copy and run benchmark
+kubectl cp benchmarks/sustained_benchmark.py inference/benchmark-runner:/tmp/bench.py
+kubectl -n inference exec benchmark-runner -- python3 /tmp/bench.py
+```
+
+### 6. Cleanup
+
+```bash
+# Delete cluster (stops all billing)
+eksctl delete cluster --name $CLUSTER_NAME --region $AWS_REGION
+```
+
+## Repository Structure
+
+```
+.
+├── README.md                              # This file
+├── LICENSE                                # MIT-0
+├── CONTRIBUTING.md                        # Contribution guidelines
+├── CODE_OF_CONDUCT.md                     # Code of conduct
+├── manifests/
+│   ├── cluster.yaml                       # eksctl cluster definition
+│   ├── vllm-deployment.yaml              # vLLM with KVEvents + prefix caching
+│   ├── gateway.yaml                       # Envoy Gateway + GatewayClass
+│   ├── llm-d-router-values.yaml          # Helm values for precise scorer
+│   └── benchmark-runner.yaml             # Benchmark pod
+├── benchmarks/
+│   └── sustained_benchmark.py            # Multi-turn sustained load benchmark
+├── scripts/
+│   ├── setup.sh                          # End-to-end deployment script
+│   └── cleanup.sh                        # Tear down all resources
+├── docs/
+│   └── architecture.md                   # Detailed architecture explanation
+└── images/
+    └── architecture-diagram.png          # Architecture diagram
+```
+
+## Key Configuration Details
+
+### vLLM Args (for KVEvents)
+
+```yaml
+args:
+  - --enable-prefix-caching
+  - --prefix-caching-hash-algo sha256_cbor
+  - --block-size 64
+  - --kv-events-config '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@mistralai/Mistral-7B-Instruct-v0.3"}'
+env:
+  - name: PYTHONHASHSEED
+    value: "42"
+```
+
+### llm-d Scorer Plugins
+
+```yaml
+plugins:
+  - type: token-producer
+  - type: endpoint-notification-source
+  - type: precise-prefix-cache-producer
+    parameters:
+      tokenProcessorConfig:
+        blockSize: 64           # Must match vLLM --block-size
+      kvEventsConfig:
+        discoverPods: true
+        podDiscoveryConfig:
+          socketPort: 5556      # vLLM ZMQ port
+  - type: prefix-cache-scorer
+    parameters:
+      prefixMatchInfoProducerName: precise-prefix-cache-producer
+  - type: kv-cache-utilization-scorer
+  - type: queue-scorer
+```
+
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.
+
+## Related Resources
+
+- [llm-d Documentation](https://llm-d.ai/docs/getting-started)
+- [Precise Prefix Cache Routing Guide](https://github.com/llm-d/llm-d/blob/main/guides/precise-prefix-cache-routing/README.md)
+- [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/)
+- [vLLM Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html)
+- [Amazon EKS Documentation](https://docs.aws.amazon.com/eks/latest/userguide/)

@@ -1,0 +1,19 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: cache-routing-benchmark
+  region: us-west-2
+  version: "1.30"
+
+managedNodeGroups:
+  - name: gpu-nodes
+    instanceType: g5.2xlarge
+    desiredCapacity: 8
+    minSize: 0
+    maxSize: 8
+    volumeSize: 100
+    labels:
+      nvidia.com/gpu.present: "true"
+    tags:
+      project: cache-aware-routing-benchmark
