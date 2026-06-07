@@ -1,0 +1,211 @@
+<mxfile><diagram name="Architecture" id="page-1"><mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=none;arcSize=2;" vertex="1" parent="1">
+  <mxGeometry x="20" y="20" width="1160" height="720" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="title" value="Cache-Aware LLM Routing on Amazon EKS" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+  <mxGeometry x="40" y="30" width="500" height="30" as="geometry"/>
+</mxCell>
+<mxCell id="subtitle" value="Gateway API Inference Extension + llm-d" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#545B64;" vertex="1" parent="1">
+  <mxGeometry x="40" y="55" width="400" height="20" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="client" value="Client" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.user;" vertex="1" parent="1">
+  <mxGeometry x="80" y="330" width="50" height="50" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="aws_cloud" value="AWS Cloud" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;" vertex="1" parent="1">
+  <mxGeometry x="180" y="90" width="960" height="630" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="alb" value="Application&#xa;Load Balancer" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.application_load_balancer;" vertex="1" parent="aws_cloud">
+  <mxGeometry x="40" y="260" width="50" height="50" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="vpc" value="VPC" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc;strokeColor=#248814;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;" vertex="1" parent="aws_cloud">
+  <mxGeometry x="140" y="40" width="790" height="570" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="private_subnet" value="Private Subnet" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_private_subnet;strokeColor=#147EBA;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;" vertex="1" parent="vpc">
+  <mxGeometry x="20" y="40" width="750" height="510" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="eks_cluster" value="Amazon EKS Cluster (v1.30)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;container=1;rounded=1;arcSize=4;strokeColor=#ED7100;fillColor=#FFF3E6;verticalAlign=top;align=left;spacingLeft=10;" vertex="1" parent="private_subnet">
+  <mxGeometry x="20" y="40" width="710" height="450" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="eks_icon" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.eks;" vertex="1" parent="private_subnet">
+  <mxGeometry x="680" y="45" width="30" height="30" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="envoy_gw" value="Envoy Gateway&#xa;(port 8080)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C4FFF;fontColor=#ffffff;strokeColor=none;fontSize=11;fontStyle=1;" vertex="1" parent="eks_cluster">
+  <mxGeometry x="30" y="60" width="140" height="60" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="epp_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F4EA;strokeColor=#248814;strokeWidth=2;container=1;" vertex="1" parent="eks_cluster">
+  <mxGeometry x="220" y="40" width="250" height="100" as="geometry"/>
+</mxCell>
+
+<mxCell id="epp_title" value="llm-d EPP (Endpoint Picker)" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="epp_box">
+  <mxGeometry x="10" y="5" width="230" height="25" as="geometry"/>
+</mxCell>
+
+<mxCell id="epp_scorers" value="Scorers: prefix-cache(3) + queue(2)&#xa;+ kv-utilization(2) + LRU(2)" style="text;html=1;align=center;verticalAlign=top;fontSize=10;fontColor=#545B64;" vertex="1" parent="epp_box">
+  <mxGeometry x="10" y="35" width="230" height="55" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="inference_pool" value="InferencePool&#xa;(Gateway API v1.5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;fontColor=#ffffff;strokeColor=none;fontSize=11;fontStyle=0;" vertex="1" parent="eks_cluster">
+  <mxGeometry x="520" y="60" width="150" height="60" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="vllm_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3E6;strokeColor=#ED7100;strokeWidth=2;container=1;" vertex="1" parent="eks_cluster">
+  <mxGeometry x="30" y="190" width="650" height="240" as="geometry"/>
+</mxCell>
+
+<mxCell id="vllm_label" value="vLLM Inference Pods (8x g5.2xlarge — NVIDIA A10G 24GB)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#ED7100;" vertex="1" parent="vllm_group">
+  <mxGeometry x="10" y="5" width="500" height="25" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="pod1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ED7100;container=1;" vertex="1" parent="vllm_group">
+  <mxGeometry x="15" y="40" width="140" height="180" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_title" value="vLLM Pod 1" style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="pod1">
+  <mxGeometry x="5" y="5" width="130" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_model" value="Mistral-7B-Instruct-v0.3" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;" vertex="1" parent="pod1">
+  <mxGeometry x="5" y="22" width="130" height="15" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_cache" value="KV Cache&#xa;Blocks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#01A88D;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="pod1">
+  <mxGeometry x="10" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_prefix" value="Prefix&#xa;Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#527FFF;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="pod1">
+  <mxGeometry x="75" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_zmq" value="ZeroMQ Publisher&#xa;(tcp://*:5556)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;fontColor=#ffffff;strokeColor=none;fontSize=9;fontStyle=0;" vertex="1" parent="pod1">
+  <mxGeometry x="10" y="100" width="120" height="35" as="geometry"/>
+</mxCell>
+<mxCell id="pod1_hash" value="PYTHONHASHSEED=42&#xa;block-size=64" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;fontFamily=Courier New;" vertex="1" parent="pod1">
+  <mxGeometry x="5" y="140" width="130" height="30" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="pod2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ED7100;container=1;" vertex="1" parent="vllm_group">
+  <mxGeometry x="170" y="40" width="140" height="180" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_title" value="vLLM Pod 2" style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="pod2">
+  <mxGeometry x="5" y="5" width="130" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_model" value="Mistral-7B-Instruct-v0.3" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;" vertex="1" parent="pod2">
+  <mxGeometry x="5" y="22" width="130" height="15" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_cache" value="KV Cache&#xa;Blocks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#01A88D;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="pod2">
+  <mxGeometry x="10" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_prefix" value="Prefix&#xa;Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#527FFF;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="pod2">
+  <mxGeometry x="75" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_zmq" value="ZeroMQ Publisher&#xa;(tcp://*:5556)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;fontColor=#ffffff;strokeColor=none;fontSize=9;fontStyle=0;" vertex="1" parent="pod2">
+  <mxGeometry x="10" y="100" width="120" height="35" as="geometry"/>
+</mxCell>
+<mxCell id="pod2_hash" value="PYTHONHASHSEED=42&#xa;block-size=64" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;fontFamily=Courier New;" vertex="1" parent="pod2">
+  <mxGeometry x="5" y="140" width="130" height="30" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="pod_dots" value="..." style="text;html=1;align=center;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#545B64;" vertex="1" parent="vllm_group">
+  <mxGeometry x="325" y="110" width="40" height="40" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="podn" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ED7100;container=1;" vertex="1" parent="vllm_group">
+  <mxGeometry x="380" y="40" width="140" height="180" as="geometry"/>
+</mxCell>
+<mxCell id="podn_title" value="vLLM Pod 8" style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="podn">
+  <mxGeometry x="5" y="5" width="130" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="podn_model" value="Mistral-7B-Instruct-v0.3" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;" vertex="1" parent="podn">
+  <mxGeometry x="5" y="22" width="130" height="15" as="geometry"/>
+</mxCell>
+<mxCell id="podn_cache" value="KV Cache&#xa;Blocks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#01A88D;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="podn">
+  <mxGeometry x="10" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="podn_prefix" value="Prefix&#xa;Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#527FFF;fontColor=#ffffff;strokeColor=none;fontSize=9;" vertex="1" parent="podn">
+  <mxGeometry x="75" y="45" width="55" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="podn_zmq" value="ZeroMQ Publisher&#xa;(tcp://*:5556)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;fontColor=#ffffff;strokeColor=none;fontSize=9;fontStyle=0;" vertex="1" parent="podn">
+  <mxGeometry x="10" y="100" width="120" height="35" as="geometry"/>
+</mxCell>
+<mxCell id="podn_hash" value="PYTHONHASHSEED=42&#xa;block-size=64" style="text;html=1;align=center;verticalAlign=middle;fontSize=8;fontColor=#545B64;fontFamily=Courier New;" vertex="1" parent="podn">
+  <mxGeometry x="5" y="140" width="130" height="30" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="result_box" value="p90 TTFT: 4.4s → 1.4s&#xa;(69% improvement)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#01A88D;fontColor=#ffffff;strokeColor=none;fontSize=11;fontStyle=1;" vertex="1" parent="vllm_group">
+  <mxGeometry x="540" y="80" width="100" height="60" as="geometry"/>
+</mxCell>
+
+
+
+
+<mxCell id="conn1" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#232F3E;strokeWidth=2;fontSize=10;fontColor=#545B64;" edge="1" parent="1" source="client" target="alb">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="conn2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#8C4FFF;strokeWidth=2;" edge="1" parent="1" source="alb" target="envoy_gw">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="conn3" value="ext-proc gRPC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#248814;strokeWidth=2;dashed=1;fontSize=9;fontColor=#248814;labelBackgroundColor=#FFF3E6;" edge="1" parent="eks_cluster" source="envoy_gw" target="epp_box">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="conn4" value="score + select pod" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#232F3E;strokeWidth=1.5;dashed=1;fontSize=9;fontColor=#545B64;labelBackgroundColor=#FFF3E6;" edge="1" parent="eks_cluster" source="epp_box" target="inference_pool">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="conn5" value="routed request&#xa;(to best pod)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#ED7100;strokeWidth=2;fontSize=9;fontColor=#ED7100;labelBackgroundColor=#FFF3E6;exitX=0.5;exitY=1;entryX=0.15;entryY=0;" edge="1" parent="eks_cluster" source="envoy_gw" target="vllm_group">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+
+
+<mxCell id="zmq_conn" value="ZMQ subscribe (KV block events)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#FF9900;strokeWidth=1.5;dashed=1;dashPattern=5 3;fontSize=9;fontColor=#FF9900;labelBackgroundColor=#FFF3E6;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="eks_cluster" source="vllm_group" target="epp_box">
+  <mxGeometry relative="1" as="geometry">
+    <Array as="points">
+      <mxPoint x="355" y="175"/>
+      <mxPoint x="345" y="175"/>
+    </Array>
+  </mxGeometry>
+</mxCell>
+
+
+<mxCell id="legend_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#DEDEE3;container=1;" vertex="1" parent="1">
+  <mxGeometry x="780" y="30" width="380" height="50" as="geometry"/>
+</mxCell>
+<mxCell id="legend1" value="━ Data path" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#ED7100;" vertex="1" parent="legend_box">
+  <mxGeometry x="10" y="5" width="90" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="legend2" value="┄ ext-proc (control)" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#248814;" vertex="1" parent="legend_box">
+  <mxGeometry x="110" y="5" width="130" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="legend3" value="┄ ZMQ events" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#FF9900;" vertex="1" parent="legend_box">
+  <mxGeometry x="250" y="5" width="100" height="20" as="geometry"/>
+</mxCell>
+<mxCell id="legend4" value="Under sustained 150-user load, 25 QPS Poisson arrival" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#545B64;" vertex="1" parent="legend_box">
+  <mxGeometry x="10" y="27" width="350" height="20" as="geometry"/>
+</mxCell></root></mxGraphModel></diagram></mxfile>

@@ -2,6 +2,8 @@
 
 ![Architecture Diagram](./images/architecture-diagram.png)
 
+> Editable source: [`architecture.drawio`](./architecture.drawio)
+
 This sample demonstrates how to deploy precise KV-cache-aware inference routing on [Amazon EKS](https://aws.amazon.com/eks/) using the [Kubernetes Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) and [llm-d](https://llm-d.ai/), reducing tail latency (p90 TTFT) by up to 69% compared to standard round-robin routing under sustained multi-turn load.
 
 ![Benchmark Results](./images/benchmark-results.png)
