@@ -2,7 +2,7 @@
 # End-to-end deployment script for cache-aware LLM routing on Amazon EKS
 # Prerequisites: aws cli, kubectl, helm, eksctl, HF_TOKEN env var set
 
-set -e
+set -euo pipefail
 
 REGION=${AWS_REGION:-us-west-2}
 CLUSTER_NAME=${CLUSTER_NAME:-cache-routing-benchmark}
@@ -15,9 +15,15 @@ echo "Cluster: $CLUSTER_NAME"
 echo ""
 
 # Validate prerequisites
-if [ -z "$HF_TOKEN" ]; then
+if [ -z "${HF_TOKEN:-}" ]; then
   echo "ERROR: HF_TOKEN environment variable not set."
   echo "Get a token from https://huggingface.co/settings/tokens"
+  exit 1
+fi
+
+if [ -z "${KMS_KEY_ARN:-}" ]; then
+  echo "ERROR: KMS_KEY_ARN environment variable not set."
+  echo "Create a KMS key: aws kms create-key --region $REGION"
   exit 1
 fi
 
@@ -26,8 +32,8 @@ command -v kubectl >/dev/null || { echo "ERROR: kubectl not found"; exit 1; }
 command -v helm >/dev/null || { echo "ERROR: helm not found"; exit 1; }
 
 # Step 1: Create EKS cluster
-echo ">>> Step 1: Creating EKS cluster (takes ~15 min)..."
-eksctl create cluster -f "$SCRIPT_DIR/manifests/cluster.yaml"
+echo ">>> Step 1: Creating EKS cluster (~15 min)..."
+sed "s|\${KMS_KEY_ARN}|${KMS_KEY_ARN}|g" "$SCRIPT_DIR/manifests/cluster.yaml" | eksctl create cluster -f -
 echo "Cluster created."
 
 # Step 2: Install NVIDIA device plugin
@@ -43,7 +49,7 @@ kubectl -n $NAMESPACE create secret generic llm-d-hf-token --from-literal=HF_TOK
 echo "Secrets created."
 
 # Step 4: Deploy vLLM
-echo ">>> Step 4: Deploying vLLM (8 replicas, takes ~5 min for model loading)..."
+echo ">>> Step 4: Deploying vLLM (8 replicas, ~5 min for model loading)..."
 kubectl apply -f "$SCRIPT_DIR/manifests/vllm-deployment.yaml"
 echo "Waiting for vLLM pods to be ready..."
 kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app=vllm-inference --timeout=600s
@@ -76,9 +82,17 @@ echo "Benchmark runner ready."
 
 # Step 8: Verify endpoints
 echo ">>> Step 8: Verifying endpoints..."
+CA_SVC=$(kubectl -n envoy-gateway-system get svc \
+  -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway \
+  -o jsonpath='{.items[0].metadata.name}')
+
 kubectl -n $NAMESPACE exec benchmark-runner -- python3 -c "
 import urllib.request, json
-for name, ep in [('Round-Robin', 'http://vllm-inference.inference.svc.cluster.local:8000/v1/completions'), ('Cache-Aware', 'http://$(kubectl -n envoy-gateway-system get svc -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway -o jsonpath='{.items[0].metadata.name}').envoy-gateway-system.svc.cluster.local:8080/v1/completions')]:
+endpoints = {
+    'Round-Robin': 'http://vllm-inference.inference.svc.cluster.local:8000/v1/completions',
+    'Cache-Aware': 'http://${CA_SVC}.envoy-gateway-system.svc.cluster.local:8080/v1/completions'
+}
+for name, ep in endpoints.items():
     req = urllib.request.Request(ep, data=json.dumps({'model':'mistralai/Mistral-7B-Instruct-v0.3','prompt':'Hello','max_tokens':5}).encode(), headers={'Content-Type':'application/json'})
     try:
         resp = urllib.request.urlopen(req, timeout=30)

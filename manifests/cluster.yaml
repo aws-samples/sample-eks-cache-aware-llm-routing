@@ -4,7 +4,25 @@ kind: ClusterConfig
 metadata:
   name: cache-routing-benchmark
   region: us-west-2
-  version: "1.30"
+  version: "1.31"
+
+# Private cluster: API server accessible only from within VPC
+privateCluster:
+  enabled: true
+
+# Encrypt Kubernetes secrets with KMS
+secretsEncryption:
+  keyARN: ${KMS_KEY_ARN}  # Replace with your KMS key ARN or set via environment
+
+# Control-plane audit logging
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - api
+      - audit
+      - authenticator
+      - controllerManager
+      - scheduler
 
 managedNodeGroups:
   - name: gpu-nodes
@@ -13,6 +31,7 @@ managedNodeGroups:
     minSize: 0
     maxSize: 8
     volumeSize: 100
+    privateNetworking: true  # Nodes in private subnets only
     labels:
       nvidia.com/gpu.present: "true"
     tags:

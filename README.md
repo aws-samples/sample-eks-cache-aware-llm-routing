@@ -231,7 +231,7 @@ args:
   - --prefix-caching-hash-algo sha256_cbor
   - --block-size 64
   - --kv-events-config '{"enable_kv_cache_events":true,"publisher":"zmq",
-      "endpoint":"tcp://*:5556",
+      "endpoint":"tcp://$(POD_IP):5556",
       "topic":"kv@$(POD_IP):8000@mistralai/Mistral-7B-Instruct-v0.3"}'
 env:
   - name: PYTHONHASHSEED
@@ -266,10 +266,25 @@ plugins:
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for information on reporting security issues.
 
-This sample follows AWS security best practices:
-- GPU nodes deployed in private subnets
-- Secrets stored in Kubernetes Secrets (use [AWS Secrets Manager CSI driver](https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_csi_driver.html) for production)
-- No public endpoints exposed beyond the ALB
+This sample implements the following security hardening measures:
+
+- **Private cluster**: EKS API server endpoint is private (VPC-only access)
+- **Private subnets**: GPU nodes deployed with `privateNetworking: true` — no public IPs
+- **Secrets encryption**: Kubernetes secrets encrypted at rest with AWS KMS (`secretsEncryption.keyARN`)
+- **Control-plane audit logging**: API, audit, authenticator, controller-manager, and scheduler logs enabled via CloudWatch
+- **TLS on EPP**: ext-proc gRPC served over TLS (`--secure-serving=true`)
+- **Metrics auth enabled**: EPP metrics endpoint requires authentication (`--metrics-endpoint-auth=true`)
+- **Non-root containers**: All pods run as non-root (UID 1000) with `allowPrivilegeEscalation: false` and `drop: ALL` capabilities
+- **CPU/memory limits**: Resource limits set on all containers to prevent noisy-neighbor effects
+- **ZMQ endpoint restricted**: KV-events ZMQ binds to pod IP only (`tcp://$(POD_IP):5556`), not all interfaces; NetworkPolicy restricts port 5556 to EPP pods
+- **HF token via env from Secret**: Model token injected as environment variable from Kubernetes Secret — never exposed in process args
+- **No inline shell substitution**: Setup script uses variable assignment before use (no command substitution inside `kubectl exec`)
+
+> [!NOTE]
+> For production deployments, consider additionally:
+> - Using [AWS Secrets Manager CSI driver](https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_csi_driver.html) instead of native Kubernetes Secrets
+> - Enabling [Amazon GuardDuty for EKS](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-eks-audit-log-monitoring.html)
+> - Adding Pod Security Standards (`restricted` profile) at the namespace level
 
 ## Contributing
 
