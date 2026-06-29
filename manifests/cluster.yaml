@@ -6,9 +6,14 @@ metadata:
   region: us-west-2
   version: "1.31"
 
-# Private cluster: API server accessible only from within VPC
-privateCluster:
-  enabled: true
+# API server endpoint: public + private (nodes communicate privately,
+# kubectl accessible from local machine or CloudShell).
+# To restrict further, disable publicAccess after setup and use CloudShell:
+# https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html
+vpc:
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
 
 # Encrypt Kubernetes secrets with KMS
 secretsEncryption:

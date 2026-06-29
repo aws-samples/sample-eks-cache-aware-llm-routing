@@ -268,7 +268,7 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for information
 
 This sample implements the following security hardening measures:
 
-- **Private cluster**: EKS API server endpoint is private (VPC-only access)
+- **Private + public API endpoint**: Nodes communicate via private endpoint; public access enabled for `kubectl` from developer machines. For fully private access, disable `publicAccess` post-setup and use [AWS CloudShell VPC environment](https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html#accessing-a-private-only-api-server)
 - **Private subnets**: GPU nodes deployed with `privateNetworking: true` — no public IPs
 - **Secrets encryption**: Kubernetes secrets encrypted at rest with AWS KMS (`secretsEncryption.keyARN`)
 - **Control-plane audit logging**: API, audit, authenticator, controller-manager, and scheduler logs enabled via CloudWatch
