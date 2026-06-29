@@ -4,10 +4,6 @@ metadata:
   name: benchmark-runner
   namespace: inference
 spec:
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    fsGroup: 1000
   containers:
     - name: python
       image: python:3.11-slim

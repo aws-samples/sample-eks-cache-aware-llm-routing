@@ -20,8 +20,6 @@ spec:
         llm-d.ai/guide: cache-aware-routing
     spec:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
         fsGroup: 1000
       containers:
         - name: vllm
@@ -62,12 +60,12 @@ spec:
               name: zmq-kv-events
           resources:
             requests:
-              cpu: "4"
+              cpu: "2"
               memory: 8Gi
               nvidia.com/gpu: 1
             limits:
-              cpu: "7"
-              memory: 24Gi
+              cpu: "6"
+              memory: 20Gi
               nvidia.com/gpu: 1
           securityContext:
             allowPrivilegeEscalation: false
