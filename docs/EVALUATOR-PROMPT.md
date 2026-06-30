@@ -12,6 +12,7 @@ Before you begin, ensure you have:
 - AWS CLI v2 configured with appropriate permissions
 - `kubectl`, `helm`, and `eksctl` installed
 - A [HuggingFace token](https://huggingface.co/settings/tokens) with access to `mistralai/Mistral-7B-Instruct-v0.3`
+- An AWS KMS key for secrets encryption (create one with `aws kms create-key --region us-west-2`)
 - Budget: ~$20 (deployment runs for 2-3 hours at ~$8.25/hr in GPU costs)
 
 ## Step 1: Clone the Repository
@@ -48,22 +49,34 @@ Follow the **Step-by-Step Deployment** section in README.md exactly as written. 
 ```bash
 export AWS_REGION=us-west-2
 export HF_TOKEN=<your-token>
+export KMS_KEY_ARN=<your-kms-key-arn>
 ```
 
 After each step, verify:
 - After cluster creation: `kubectl get nodes` shows 8 Ready nodes
+- After NVIDIA plugin: `kubectl get ds -n kube-system nvidia-device-plugin-daemonset` shows 8 desired/ready
 - After vLLM deploy: `kubectl -n inference get pods -l app=vllm-inference` shows 8/8 Running
 - After Gateway install: `kubectl -n inference get gateway` shows Programmed=True
-- After llm-d Router: `kubectl -n inference get pods -l llm-d-router-gateway` shows 2/2 Running
+- After llm-d Router: `kubectl -n inference get pods -l llm-d-router-gateway=cache-aware-routing-epp` shows 1/1 Running
 
 ## Step 5: Verify Routing is Working
+
+> **Note**: The benchmark script requires the CA endpoint as a CLI argument. Discover it first:
+> ```bash
+> CA_SVC=$(kubectl -n envoy-gateway-system get svc -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway -o jsonpath='{.items[0].metadata.name}')
+> echo "http://${CA_SVC}.envoy-gateway-system.svc.cluster.local:8080/v1/completions"
+> ```
 
 From the benchmark-runner pod, confirm both endpoints respond:
 
 ```bash
+CA_SVC=$(kubectl -n envoy-gateway-system get svc \
+  -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway \
+  -o jsonpath='{.items[0].metadata.name}')
+
 kubectl -n inference exec benchmark-runner -- python3 -c "
 import urllib.request, json
-for name, ep in [('RR', 'http://vllm-inference.inference.svc.cluster.local:8000/v1/completions'), ('CA', 'http://<envoy-gateway-svc>.envoy-gateway-system.svc.cluster.local:8080/v1/completions')]:
+for name, ep in [('RR', 'http://vllm-inference.inference.svc.cluster.local:8000/v1/completions'), ('CA', 'http://${CA_SVC}.envoy-gateway-system.svc.cluster.local:8080/v1/completions')]:
     req = urllib.request.Request(ep, data=json.dumps({'model':'mistralai/Mistral-7B-Instruct-v0.3','prompt':'Hello','max_tokens':5}).encode(), headers={'Content-Type':'application/json'})
     resp = urllib.request.urlopen(req, timeout=30)
     print(f'{name}: {resp.status}')
@@ -71,11 +84,6 @@ for name, ep in [('RR', 'http://vllm-inference.inference.svc.cluster.local:8000/
 ```
 
 Both should return 200.
-
-To find the envoy gateway service name:
-```bash
-kubectl -n envoy-gateway-system get svc -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway
-```
 
 ## Step 6: Verify Precise Scorer is Active
 
@@ -96,10 +104,17 @@ You should see 8 connections (one per vLLM pod).
 ```bash
 kubectl -n inference exec benchmark-runner -- pip install aiohttp
 kubectl cp benchmarks/sustained_benchmark.py inference/benchmark-runner:/tmp/bench.py
-kubectl -n inference exec benchmark-runner -- python3 /tmp/bench.py
+
+# Discover the cache-aware endpoint
+CA_SVC=$(kubectl -n envoy-gateway-system get svc \
+  -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway \
+  -o jsonpath='{.items[0].metadata.name}')
+CA_EP="http://${CA_SVC}.envoy-gateway-system.svc.cluster.local:8080/v1/completions"
+
+kubectl -n inference exec benchmark-runner -- python3 /tmp/bench.py --ca-endpoint "$CA_EP"
 ```
 
-This takes ~12 minutes (5 min per routing path + cooldown).
+This takes ~8 minutes (3 min per routing path + 60s cooldown).
 
 ## Step 8: Compare Results
 
@@ -113,7 +128,7 @@ Compare the output against the README claims:
 | RR degrades over time | Yes (649ms → 4,443ms) | |
 | CA stays more stable | Yes (288ms → 1,370ms) | |
 
-> **Expected variance**: ±30% on absolute numbers is normal due to model warmth, GPU scheduling, and network jitter. What matters is: (a) RR clearly degrades over time, (b) CA degrades significantly less, (c) improvement is sustained across the run.
+> **Expected variance**: ±30% on absolute numbers is normal due to model warmth, GPU scheduling, and network jitter. What matters is: (a) RR clearly degrades over time, (b) CA degrades significantly less, (c) the improvement trend holds or grows across the 3-minute run.
 
 ## Step 9: Verify Architecture Diagram
 
@@ -146,6 +161,11 @@ export KMS_KEY_ARN=<your-kms-key-arn>
 ```
 
 Confirm it completes without manual intervention and endpoints work.
+
+> **Note**: The manifests use `secure-serving: true` which requires cert-manager for TLS certificate provisioning. If you hit TLS errors on the EPP, install cert-manager first:
+> ```bash
+> kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
+> ```
 
 ## What to Report
 

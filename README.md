@@ -68,7 +68,7 @@ Client
 
 | Component | Role | Version |
 |-----------|------|---------|
-| [Amazon EKS](https://aws.amazon.com/eks/) | Kubernetes control plane | v1.30 |
+| [Amazon EKS](https://aws.amazon.com/eks/) | Kubernetes control plane | v1.31 |
 | [vLLM](https://docs.vllm.ai/) | LLM inference engine with prefix caching | v0.22+ |
 | [Envoy Gateway](https://gateway.envoyproxy.io/) | L7 proxy with ext-proc support | v1.2.0 |
 | [llm-d](https://llm-d.ai/) | Cache-aware request scheduler (CNCF Sandbox) | v0 |
@@ -116,11 +116,21 @@ export HF_TOKEN=<your-huggingface-token>
 ```bash
 export AWS_REGION=us-west-2
 export CLUSTER_NAME=cache-routing-benchmark
+export HF_TOKEN=<your-huggingface-token>
+export KMS_KEY_ARN=<your-kms-key-arn>  # Create with: aws kms create-key --region us-west-2
 
-eksctl create cluster -f manifests/cluster.yaml
+sed "s|\${KMS_KEY_ARN}|${KMS_KEY_ARN}|g" manifests/cluster.yaml | eksctl create cluster -f -
 ```
 
-#### 2. Deploy vLLM with KVEvents (~5 minutes for model loading)
+#### 2. Install NVIDIA Device Plugin
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.5/nvidia-device-plugin.yml
+```
+
+This DaemonSet exposes `nvidia.com/gpu` resources to the Kubernetes scheduler, allowing vLLM pods to request GPU allocation.
+
+#### 3. Deploy vLLM with KVEvents (~5 minutes for model loading)
 
 ```bash
 # Create HuggingFace token secret
@@ -141,7 +151,7 @@ pod/vllm-inference-xxx condition met
 ...
 ```
 
-#### 3. Install Gateway API and Envoy Gateway (~3 minutes)
+#### 4. Install Gateway API and Envoy Gateway (~3 minutes)
 
 ```bash
 # Gateway API CRDs
@@ -149,13 +159,13 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
 
 # Envoy Gateway
 helm install eg oci://docker.io/envoyproxy/gateway-helm \
-  --version v1.2.0 -n envoy-gateway-system --create-namespace
+  --version v1.2.0 -n envoy-gateway-system --create-namespace --wait
 
 # Gateway and GatewayClass
 kubectl apply -f manifests/gateway.yaml
 ```
 
-#### 4. Deploy llm-d Router with Precise Scorer (~2 minutes)
+#### 5. Deploy llm-d Router with Precise Scorer (~2 minutes)
 
 ```bash
 # Create HF token for tokenizer sidecar
@@ -187,9 +197,15 @@ kubectl -n inference wait --for=condition=Ready pod/benchmark-runner --timeout=1
 # Install dependencies
 kubectl -n inference exec benchmark-runner -- pip install aiohttp --quiet
 
-# Copy and run benchmark (~12 minutes: 5 min per path + cooldown)
+# Discover the cache-aware endpoint
+CA_SVC=$(kubectl -n envoy-gateway-system get svc \
+  -l gateway.networking.k8s.io/owning-gateway-name=inference-gateway \
+  -o jsonpath='{.items[0].metadata.name}')
+CA_EP="http://${CA_SVC}.envoy-gateway-system.svc.cluster.local:8080/v1/completions"
+
+# Copy and run benchmark (~8 minutes: 3 min per path + 60s cooldown)
 kubectl cp benchmarks/sustained_benchmark.py inference/benchmark-runner:/tmp/bench.py
-kubectl -n inference exec benchmark-runner -- python3 /tmp/bench.py
+kubectl -n inference exec benchmark-runner -- python3 /tmp/bench.py --ca-endpoint "$CA_EP"
 ```
 
 ## Cost
@@ -219,6 +235,14 @@ The benchmark itself takes ~15 minutes to run end-to-end.
 
 # Or manually:
 eksctl delete cluster --name $CLUSTER_NAME --region $AWS_REGION
+```
+
+To pause billing without deleting the cluster (scale GPU nodes to zero):
+
+```bash
+aws eks update-nodegroup-config --cluster-name $CLUSTER_NAME \
+  --nodegroup-name gpu-nodes --scaling-config minSize=0,maxSize=8,desiredSize=0 \
+  --region $AWS_REGION
 ```
 
 ## Key Configuration Details
