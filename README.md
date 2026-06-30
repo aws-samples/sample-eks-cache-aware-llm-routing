@@ -94,7 +94,7 @@ Client
 
 - AWS account with permissions for [Amazon EKS](https://aws.amazon.com/eks/), [Amazon EC2](https://aws.amazon.com/ec2/) (GPU instances), and [Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/)
 - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) configured
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) v1.30+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) v1.31+
 - [Helm](https://helm.sh/docs/intro/install/) v3.12+
 - [eksctl](https://eksctl.io/installation/) v0.170+
 - A [Hugging Face token](https://huggingface.co/settings/tokens) with access to `mistralai/Mistral-7B-Instruct-v0.3`
@@ -106,6 +106,7 @@ Client
 
 ```bash
 export HF_TOKEN=<your-huggingface-token>
+export KMS_KEY_ARN=<your-kms-key-arn>
 ./scripts/setup.sh
 ```
 

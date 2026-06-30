@@ -36,7 +36,7 @@
 </mxCell>
 
 
-<mxCell id="eks_cluster" value="Amazon EKS Cluster (v1.30)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;container=1;rounded=1;arcSize=4;strokeColor=#ED7100;fillColor=#FFF3E6;verticalAlign=top;align=left;spacingLeft=10;" vertex="1" parent="private_subnet">
+<mxCell id="eks_cluster" value="Amazon EKS Cluster (v1.31)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;container=1;rounded=1;arcSize=4;strokeColor=#ED7100;fillColor=#FFF3E6;verticalAlign=top;align=left;spacingLeft=10;" vertex="1" parent="private_subnet">
   <mxGeometry x="20" y="40" width="710" height="450" as="geometry"/>
 </mxCell>
 
