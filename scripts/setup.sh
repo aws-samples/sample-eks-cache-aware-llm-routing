@@ -56,10 +56,8 @@ echo "Secrets created."
 # Step 4: Deploy vLLM with prefix caching + KVEvents
 echo ">>> Step 4: Deploying vLLM (7 replicas, ~10 min for first image pull + model load)..."
 kubectl apply -f "$SCRIPT_DIR/manifests/vllm-deployment.yaml"
-# Scale to 7 to leave room for EPP on the 8th node
-kubectl -n $NAMESPACE scale deployment vllm-inference --replicas=7
 echo "Waiting for vLLM pods to be ready..."
-kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app=vllm-inference --timeout=900s
+kubectl -n $NAMESPACE rollout status deployment/vllm-inference --timeout=1200s
 echo "vLLM ready (7 pods)."
 
 # Step 5: Install cert-manager (required for EPP TLS)
@@ -77,7 +75,8 @@ echo ">>> Step 6: Installing Gateway stack (Envoy AI Gateway ${AI_GATEWAY_VERSIO
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.5.0/manifests.yaml
 
 # 6b: Gateway API standard + experimental CRDs (required by EG v1.8.1 for TLSRoute etc)
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.0/experimental-install.yaml 2>/dev/null || true
+# --server-side is required because the HTTPRoute CRD exceeds client-side annotation size limits
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.0/experimental-install.yaml
 
 # 6c: Envoy AI Gateway CRDs + controller
 curl -sL "https://github.com/envoyproxy/ai-gateway/releases/download/${AI_GATEWAY_VERSION}/ai-gateway-crds-helm-${AI_GATEWAY_VERSION}.tgz" -o /tmp/ai-gateway-crds.tgz
