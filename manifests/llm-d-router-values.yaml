@@ -19,10 +19,9 @@ router:
   epp:
     replicas: 1
     flags:
-      metrics-endpoint-auth: true
+      metrics-endpoint-auth: false
       model-server-metrics-port: 8000
       secure-serving: true
-      cert-path: /certs/tls.crt
       v: 2
     env:
       - name: HF_TOKEN

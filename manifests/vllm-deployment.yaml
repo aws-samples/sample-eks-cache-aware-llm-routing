@@ -40,7 +40,7 @@ spec:
             - --block-size
             - "64"
             - --kv-events-config
-            - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://$(POD_IP):5556","topic":"kv@$(POD_IP):8000@mistralai/Mistral-7B-Instruct-v0.3"}'
+            - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@mistralai/Mistral-7B-Instruct-v0.3"}'
           env:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom:

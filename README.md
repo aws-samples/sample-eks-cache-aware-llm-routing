@@ -134,7 +134,8 @@ This DaemonSet exposes `nvidia.com/gpu` resources to the Kubernetes scheduler, a
 #### 3. Deploy vLLM with KVEvents (~5 minutes for model loading)
 
 ```bash
-# Create HuggingFace token secret
+# Create namespace and HuggingFace token secret
+kubectl create namespace inference --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n inference create secret generic hf-token \
   --from-literal=token=$HF_TOKEN
 
